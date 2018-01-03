@@ -1,0 +1,27 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ii]ntermediate/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+*.cso
+x64
+
+# Visual Studio cache files
+.vs/
+ipch/
+*.aps
+*.VC.db
+*.VC.opendb
+*.sdf
+*.opensdf
+*.suo
+*.user
+
+# Temporary OS files
+.DS_Store
+Thumbs.db
+
+# Versioning
+/res/Version.h
