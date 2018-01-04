@@ -35,8 +35,11 @@ LM_API
 int VerifyLspIsInstalled()
 {
 	LPWSAPROTOCOL_INFOW pProtocolInfo = NULL;
-	INT iTotalProtocols = 0;
-	int count, i, j = 0;
+	DWORD				dummyLspId = 0;
+	INT					iTotalProtocols = 0;
+	int					count = 0, 
+						i = 0, 
+						j = 0;
 
 	pProtocolInfo = EnumerateProviders(gCatalog, &iTotalProtocols);
 	if (NULL == pProtocolInfo) {
@@ -45,13 +48,25 @@ int VerifyLspIsInstalled()
 		);
 		return -1;
 	}
+
+	for (i = 0; i < iTotalProtocols; i++) {
+		if (0 == memcmp(&pProtocolInfo[j].ProviderId, &gProviderGuid, sizeof(gProviderGuid))) {
+			dummyLspId = pProtocolInfo[j].dwCatalogEntryId;
+		}
+	}
+
+	if (0 == dummyLspId) {
+		goto cleanup;
+	}
 	
 	count = 0;
 	for (i = 0; i < REQUIRE_PROTOCOL_LEN; i++) {
 
 		for (j = 0; j < iTotalProtocols; j++) {
 
-			if (gRequireProtocolInfos[i].af == pProtocolInfo[j].iAddressFamily && 
+			if (pProtocolInfo[j].ProtocolChain.ChainLen > 1 &&
+				pProtocolInfo[j].ProtocolChain.ChainEntries[0] == dummyLspId &&
+				gRequireProtocolInfos[i].af == pProtocolInfo[j].iAddressFamily &&
 				gRequireProtocolInfos[i].type == pProtocolInfo[j].iSocketType && 
 				gRequireProtocolInfos[i].protocol == pProtocolInfo[j].iProtocol) {
 				count++;
@@ -60,6 +75,8 @@ int VerifyLspIsInstalled()
 		}
 
 	}
+
+cleanup:
 
 	FreeProviders( pProtocolInfo );
 	pProtocolInfo = NULL;
