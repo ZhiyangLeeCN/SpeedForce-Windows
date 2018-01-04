@@ -5,11 +5,11 @@
 //
 // This is the hardcoded guid for our dummy (hidden) catalog entry
 //
-GUID gProviderGuid = { //f345d288-21e2-441d-a7d1-eb4c6e001e3d
-    0xf345d288,
-    0x21e2,
-    0x441d,
-    {0xa7, 0xd1, 0xeb, 0x4c, 0x6e, 0x00, 0x1e, 0x3d}
+GUID gProviderGuid = { //8DCA2997-7BD5-4455-8327-40E293B4ACC2
+	0X8DCA2997,
+	0X7BD5,
+	0X4455,
+	{ 0X83,0X27,0X40,0XE2,0X93,0XB4,0XAC,0XC2 } 
 };
 
 void
