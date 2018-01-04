@@ -203,8 +203,6 @@ WSPConnect(
 
     ASSERT( sockContext->Provider->NextProcTable.lpWSPConnect );
 
-    FindDestinationAddress( sockContext, name, namelen, &proxyAddr, &proxyLen );
-
     rc = sockContext->Provider->NextProcTable.lpWSPConnect(
             s,
             proxyAddr, 
@@ -263,6 +261,55 @@ WSPSend(
 cleanup:
 
     return rc;
+}
+
+int WSPAPI
+WSPSendTo(
+		SOCKET s,
+		LPWSABUF lpBuffers,
+		DWORD dwBufferCount,
+		LPDWORD lpNumberOfBytesSent,
+		DWORD dwFlags,
+		const struct sockaddr FAR * lpTo,
+		int iTolen,
+		LPWSAOVERLAPPED lpOverlapped,
+		LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+		LPWSATHREADID lpThreadId,
+		LPINT lpErrno
+		)
+{
+	SOCKET_CONTEXT *sockContext = NULL;
+	int             rc = SOCKET_ERROR;
+	//
+	// Find our provider socket corresponding to this one
+	//
+	sockContext = FindSocketContext(s);
+	if (NULL == sockContext)
+	{
+		*lpErrno = WSAENOTSOCK;
+		goto cleanup;
+	}
+
+	ASSERT(sockContext->Provider->NextProcTable.lpWSPSendTo);
+
+	rc = sockContext->Provider->NextProcTable.lpWSPSendTo(
+		s,
+		lpBuffers,
+		dwBufferCount,
+		lpNumberOfBytesSent,
+		dwFlags,
+		lpTo,
+		iTolen,
+		lpOverlapped,
+		lpCompletionRoutine,
+		lpThreadId,
+		lpErrno
+	);
+
+cleanup:
+
+	return rc;
+
 }
 
 int WSPAPI 
@@ -348,6 +395,7 @@ WSPStartup(
     lpProcTable->lpWSPCloseSocket   = WSPCloseSocket;
     lpProcTable->lpWSPConnect       = WSPConnect;
     lpProcTable->lpWSPSend          = WSPSend;
+	lpProcTable->lpWSPSendTo		= WSPSendTo;
 
     memcpy( lpWSPData, &loadProvider->WinsockVersion, sizeof( *lpWSPData ) );
 

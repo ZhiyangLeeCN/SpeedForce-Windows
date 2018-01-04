@@ -6,6 +6,8 @@
 
 #define WINSOCK_DLL     "\\ws2_32.dll"
 
+#define DLLExport __declspec(dllexport)
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // External defines from lspguid.cpp and provider.cpp

@@ -46,52 +46,6 @@ FindDestinationAddress(
         int            *proxyLen
         );
 
-
-int WSPAPI 
-WSPCloseSocket(
-        SOCKET s,        
-        LPINT  lpErrno
-        );
-
-int WSPAPI 
-WSPConnect(
-        SOCKET                s,
-        const struct sockaddr FAR * name,
-        int                   namelen,
-        LPWSABUF              lpCallerData,
-        LPWSABUF              lpCalleeData,
-        LPQOS                 lpSQOS,
-        LPQOS                 lpGQOS,
-        LPINT                 lpErrno
-        );
-
-int WSPAPI
-WSPCleanup(
-	LPINT lpErrno
-	);
-
-int WSPAPI
-WSPSend(
-	SOCKET          s,
-	LPWSABUF        lpBuffers,
-	DWORD           dwBufferCount,
-	LPDWORD         lpNumberOfBytesSent,
-	DWORD           dwFlags,
-	LPWSAOVERLAPPED lpOverlapped,
-	LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
-	LPWSATHREADID   lpThreadId,
-	LPINT           lpErrno
-	);
-
-int WSPAPI
-WSPStartup(
-	WORD                wVersion,
-	LPWSPDATA           lpWSPData,
-	LPWSAPROTOCOL_INFOW lpProtocolInfo,
-	WSPUPCALLTABLE      UpCallTable,
-	LPWSPPROC_TABLE     lpProcTable
-	);
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Sockinfo.cpp prototypes
@@ -125,23 +79,6 @@ void
 FreeSocketContextList(
         PROVIDER   *Provider
         );
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// Extension.cpp prototypes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-BOOL PASCAL FAR 
-ExtConnectEx(
-    IN SOCKET s,
-    IN const struct sockaddr FAR *name,
-    IN int namelen,
-    IN PVOID lpSendBuffer OPTIONAL,
-    IN DWORD dwSendDataLength,
-    OUT LPDWORD lpdwBytesSent,
-    IN LPOVERLAPPED lpOverlapped
-    );
 
 ////////////////////////////////////////////////////////////////////////////////
 //

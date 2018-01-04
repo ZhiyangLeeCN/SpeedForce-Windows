@@ -257,7 +257,7 @@ LspAlloc(
 {
     void *mem = NULL;
     mem = HeapAlloc( 
-            gLspHeap, 
+            GetProcessHeap(), 
             HEAP_ZERO_MEMORY, 
             size
             );
@@ -274,7 +274,7 @@ LspFree(
     LPVOID  buf
     )
 {
-    HeapFree( gLspHeap, 0, buf );
+    HeapFree( GetProcessHeap(), 0, buf );
 }
 
 int

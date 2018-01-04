@@ -9,5 +9,9 @@
   <ItemGroup>
     <ClInclude Include="src\lspcommon.h" />
     <ClInclude Include="src\lspdef.h" />
+    <ClInclude Include="src\lspguid.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\lsp.def" />
   </ItemGroup>
 </Project>
