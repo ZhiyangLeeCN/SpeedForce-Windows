@@ -18,7 +18,19 @@ namespace Gui
 
         private void button1_Click(object sender, EventArgs e)
         {
-            MessageBox.Show(LspManager.VerifyLspIsInstalled().ToString());
+            MessageBox.Show(LspManager.VerifySfLspIsInstalled().ToString());
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show(LspManager.UninstallSfLsp().ToString());
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show(
+                LspManager.InstallSfLsp().ToString()
+                );
         }
     }
 }

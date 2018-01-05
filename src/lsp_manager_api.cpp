@@ -1,5 +1,6 @@
 #include "instlsp.h"
 #include "lspguid.h"
+#include <windows.h>
 
 #define LM_API_EXPORTS
 
@@ -17,22 +18,16 @@ typedef struct _REQUIRE_PROTOCOL_INFO {
 	int	protocol;
 } REQUIRE_PROTOCOL_INFO;
 
-#define REQUIRE_PROTOCOL_LEN 3
+#define REQUIRE_PROTOCOL_LEN 2
 
-//需要拦截的3个协议
 const REQUIRE_PROTOCOL_INFO gRequireProtocolInfos[REQUIRE_PROTOCOL_LEN] = {
 	{AF_INET, SOCK_STREAM, IPPROTO_TCP},//IP4|TCP
 	{AF_INET, SOCK_DGRAM, IPPROTO_UDP},//IP4|UDP
-	{AF_INET, SOCK_RAW, IPPROTO_RAW}//IP4|RAW
+	//{AF_INET, SOCK_RAW, IPPROTO_RAW}//IP4|RAW
 };
 
-LM_API int test()
-{
-	return 201814;
-}
-
 LM_API 
-int VerifyLspIsInstalled()
+int LM_API_CALL VerifySfLspIsInstalled()
 {
 	LPWSAPROTOCOL_INFOW pProtocolInfo = NULL;
 	DWORD				dummyLspId = 0;
@@ -78,8 +73,182 @@ int VerifyLspIsInstalled()
 
 cleanup:
 
-	FreeProviders( pProtocolInfo );
-	pProtocolInfo = NULL;
+	if (NULL != pProtocolInfo) {
+		FreeProviders(pProtocolInfo);
+		pProtocolInfo = NULL;
+	}
 
 	return count;
+}
+
+LM_API
+int LM_API_CALL UninstallSfLsp()
+{
+	LPWSAPROTOCOL_INFOW pProtocolInfo = NULL;
+	DWORD				dummyLspId = 0;
+	INT					iTotalProtocols = 0;
+	int					i = 0, 
+						rc = 0;
+
+	pProtocolInfo = EnumerateProviders(gCatalog, &iTotalProtocols);
+	if (NULL == pProtocolInfo) {
+		dbgprint(
+			"MS_API::UninstallLsp Error: Unable to enumerate Winsock catalog\n"
+		);
+		rc = -1;
+		goto cleanup;
+	}
+
+	for (i = 0; i < iTotalProtocols; i++) {
+		if (0 == memcmp( &pProtocolInfo[i].ProviderId, &gProviderGuid, sizeof( gProviderGuid ) )) {
+			dummyLspId = pProtocolInfo[i].dwCatalogEntryId;
+		}
+	}
+
+	if (dummyLspId > 0) {
+
+		for ( i = 0; i < iTotalProtocols; i++)
+		{
+			if ( ( pProtocolInfo[i].dwCatalogEntryId == dummyLspId ) || 
+				( pProtocolInfo[i].ProtocolChain.ChainLen > 1 &&
+				pProtocolInfo[i].ProtocolChain.ChainEntries[0] == dummyLspId ) ) {
+
+				DeinstallProvider(gCatalog, &pProtocolInfo[i].ProviderId);
+				rc++;
+			}
+		}
+
+	} else {
+
+
+		WCHAR wszLspDefaultName[ WSAPROTOCOL_LEN ];
+		rc = MultiByteToWideChar(
+			CP_ACP,
+			0,
+			DEFAULT_LSP_NAME,
+			( int ) strlen(DEFAULT_LSP_NAME) + 1,
+			wszLspDefaultName,
+			WSAPROTOCOL_LEN
+			);
+
+		if (0 == rc) {
+			fprintf(stderr, "UninstallSfLsp: MultiByteToWideChar failed to convert '%s'; Error = %d\n",
+				DEFAULT_LSP_NAME, GetLastError());
+			goto cleanup;
+		}
+
+		rc = 0;
+		for ( i = 0; i < iTotalProtocols; i++ ) {
+
+			if ( NULL != wcsstr(pProtocolInfo[i].szProtocol, wszLspDefaultName) ) {
+				DeinstallProvider(gCatalog, &pProtocolInfo[i].ProviderId);
+				rc++;
+			}
+
+		}
+
+	}
+
+cleanup:
+
+	if (NULL != pProtocolInfo) {
+		FreeProviders(pProtocolInfo);
+		pProtocolInfo = NULL;
+	}
+
+	return rc;
+}
+
+LM_API
+int LM_API_CALL InstallSfLsp()
+{
+	LPWSAPROTOCOL_INFOW pProtocolInfo = NULL;
+	DWORD				*pdwCatalogIdArray = NULL, 
+						dwCatalogIdArrayCount = 0,
+						dwCatalogIdArrayIndex = 0;
+	INT					iTotalProtocols = 0;
+	int					lpErron, 
+						i = 0, 
+						j = 0,
+						rc = 0;
+	char *lpszLspPathAndFile = "D:\Source\SpeedForce-Windows\bin\x64\Debug\lsp_x64.dll";
+	char *lpszLspPathAndFile32 = "D:\Source\SpeedForce-Windows\bin\Win32\Debug\lsp.dll";
+	pProtocolInfo = EnumerateProviders(gCatalog, &iTotalProtocols);
+	if (NULL == pProtocolInfo) {
+		dbgprint(
+			"MS_API::InstallLsp Error: Unable to enumerate Winsock catalog\n"
+		);
+		rc = -1;
+		goto cleanup;
+	}
+
+	for (i = 0; i < REQUIRE_PROTOCOL_LEN; i++)
+	{
+		for (j = 0; j < iTotalProtocols; j++)
+		{
+			if (BASE_PROTOCOL == pProtocolInfo[j].ProtocolChain.ChainLen) {
+
+				if (gRequireProtocolInfos[i].af == pProtocolInfo[j].iAddressFamily && 
+					gRequireProtocolInfos[i].type == pProtocolInfo[j].iSocketType &&
+					gRequireProtocolInfos[i].protocol == pProtocolInfo[j].iProtocol
+					) {
+					dwCatalogIdArrayCount++;
+				}
+
+			}
+		}
+	}
+
+	pdwCatalogIdArray = (DWORD*)LspAlloc(dwCatalogIdArrayCount * sizeof(DWORD), &lpErron);
+	if (NULL == pdwCatalogIdArray) {
+		dbgprint(
+			"MS_API::InstallLsp Error:  LspAlloc failed: %d\n", lpErron
+		);
+		rc = -1;
+		goto cleanup;
+	}
+
+	for (i = 0; i < REQUIRE_PROTOCOL_LEN; i++)
+	{
+		for (j = 0; j < iTotalProtocols; j++)
+		{
+			if (BASE_PROTOCOL == pProtocolInfo[j].ProtocolChain.ChainLen) {
+
+				if (gRequireProtocolInfos[i].af == pProtocolInfo[j].iAddressFamily &&
+					gRequireProtocolInfos[i].type == pProtocolInfo[j].iSocketType &&
+					gRequireProtocolInfos[i].protocol == pProtocolInfo[j].iProtocol
+					) {
+
+					pdwCatalogIdArray[dwCatalogIdArrayIndex++] = pProtocolInfo[j].dwCatalogEntryId;
+				}
+
+			}
+		}
+	}
+
+	rc = InstallLsp(
+		gCatalog,
+		DEFAULT_LSP_NAME,
+		lpszLspPathAndFile,
+		lpszLspPathAndFile32,
+		dwCatalogIdArrayCount,
+		pdwCatalogIdArray,
+		FALSE,
+		FALSE
+	);
+	
+
+cleanup:
+
+	if (NULL != pProtocolInfo) {
+		FreeProviders(pProtocolInfo);
+		pProtocolInfo = NULL;
+	}
+
+	if (NULL != pdwCatalogIdArray) {
+		LspFree(pdwCatalogIdArray);
+		pdwCatalogIdArray = NULL;
+	}
+
+	return rc;
 }

@@ -9,8 +9,12 @@
 #define LM_CLASS_API __declspec(dllimport)
 #endif
 
-LM_API int test();
+#define LM_API_CALL _stdcall
 
-LM_API int VerifyLspIsInstalled();
+LM_API int LM_API_CALL VerifySfLspIsInstalled();
+
+LM_API int LM_API_CALL UninstallSfLsp();
+
+LM_API int LM_API_CALL InstallSfLsp();
 
 #endif // !_LSP_MANAGER_API_H
