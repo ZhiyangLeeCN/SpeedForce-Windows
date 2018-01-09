@@ -173,9 +173,6 @@ int LM_API_CALL InstallSfLsp(LPWCH lpszLspPathAndFile, LPWCH lpszLspPathAndFile3
 						j = 0,
 						rc = 0;
 
-	MessageBox(NULL, lpszLspPathAndFile, lpszLspPathAndFile32, MB_OK);
-	return 0;
-
 	pProtocolInfo = EnumerateProviders(gCatalog, &iTotalProtocols);
 	if (NULL == pProtocolInfo) {
 		dbgprint(

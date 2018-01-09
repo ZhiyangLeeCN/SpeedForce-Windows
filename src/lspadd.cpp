@@ -1256,7 +1256,8 @@ InstallProviderVista(
     DWORD dwEntryCount;
     char *lpInstallFunction = NULL;
     INT iEnumProviderCount;
-    int rc, i, j, error;
+    int rc, i, j, k, error;
+	BOOL found;
     
 
     rc = SOCKET_ERROR;
@@ -1350,6 +1351,8 @@ InstallProviderVista(
             goto cleanup;
         }
 
+		ZeroMemory(protocolList, sizeof(WSAPROTOCOL_INFOW) *dwCatalogIdArrayCount);
+
         pEnumProviders = EnumerateProviders( eCatalog, &iEnumProviderCount );
         if ( NULL == pEnumProviders )
         {
@@ -1366,7 +1369,21 @@ InstallProviderVista(
             {
                 if ( pdwCatalogIdArray[i] == pEnumProviders[j].dwCatalogEntryId )
                 {
-                    memcpy( &protocolList[dwEntryCount++], &pEnumProviders[j], sizeof(WSAPROTOCOL_INFOW) );
+					found = FALSE;
+					for (k = 0; k < (int)dwCatalogIdArrayCount; k++)
+					{
+						if (protocolList[k].iAddressFamily == pEnumProviders[j].iAddressFamily &&
+							protocolList[k].iSocketType == pEnumProviders[j].iSocketType &&
+							protocolList[k].iProtocol == pEnumProviders[j].iProtocol
+							) {
+							found = TRUE;
+							break;
+						}
+					}
+
+					if (found == FALSE) {
+						memcpy(&protocolList[dwEntryCount++], &pEnumProviders[j], sizeof(WSAPROTOCOL_INFOW));
+					}
                 }
             }
         }
@@ -1375,7 +1392,7 @@ InstallProviderVista(
                 providerGuid,
                 lpszLspPathAndFile,
 #ifdef _WIN64
-                lpszLspPathAndFile,
+				(lpszLspPathAndFile32[0] == '\0' ? lpszLspPathAndFile : lpszLspPathAndFile32),
 #endif
                 lpszLspName,
                 ( IfsProvider ? XP1_IFS_HANDLES : 0 ),
