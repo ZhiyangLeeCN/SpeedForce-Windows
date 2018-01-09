@@ -30,9 +30,9 @@
 int
 InstallLsp(
     WINSOCK_CATALOG eCatalog,               // Which catalog to install LSP into
-    __in_z char    *lpszLspName,            // String name of LSP
-    __in_z char    *lpszLspPathAndFile,     // Location of 64-bit LSP dll and dll name
-    __in_z char    *lpszLspPathAndFile32,   // Location of 32-bit LSP dll and dll name
+	LPWCH			lpwszLspName,            // String name of LSP
+	LPWCH			lpwszLspPathAndFile,     // Location of 64-bit LSP dll and dll name
+	LPWCH			lpwszLspPathAndFile32,   // Location of 32-bit LSP dll and dll name
     DWORD           dwCatalogIdArrayCount,  // Number of entries in pdwCatalogIdArray
     DWORD          *pdwCatalogIdArray,      // Array of IDs to install over
     BOOL            IfsProvider,
@@ -43,9 +43,6 @@ InstallLsp(
     WSAPROTOCOL_INFOW  *pProtocolInfo = NULL,
                        *pDummyEntry = NULL,
                        *pLayeredEntries = NULL;
-    WCHAR               wszLspName[ WSAPROTOCOL_LEN ],
-                        wszFullProviderPath[ MAX_PATH+1 ],
-                        wszFullProviderPath32[ MAX_PATH+1 ];
     GUID                ProviderBaseGuid;
     INT                 rc = SOCKET_ERROR;
 
@@ -54,62 +51,14 @@ InstallLsp(
     // entries, then enumerate the catalog to obtain all the available providers.
     //
 
-    if ( NULL == lpszLspName )
+    if ( NULL == lpwszLspName)
     {
-        lpszLspName = DEFAULT_LSP_NAME;
+		lpwszLspName = TEXT(DEFAULT_LSP_NAME);
     }
 
-    // Convert the LSP name to UNICODE since the Winsock catalog is all UNICODE
-    rc = MultiByteToWideChar(
-            CP_ACP, 
-            0, 
-            lpszLspName, 
-            (int) strlen( lpszLspName ) + 1,
-            wszLspName, 
-            WSAPROTOCOL_LEN 
-            );
-    if (rc == 0)
+    if (!lpwszLspPathAndFile32)
     {
-        fprintf(stderr, "InstallLsp: MultiByteToWideChar failed to convert '%s'; Error = %d\n",
-                lpszLspName, GetLastError());
-        goto cleanup;
-    }
-
-    rc = MultiByteToWideChar(
-            CP_ACP,
-            0,
-            lpszLspPathAndFile,
-            (int) strlen( lpszLspPathAndFile ) + 1,
-            wszFullProviderPath,
-            MAX_PATH
-            );
-    if ( 0 == rc )
-    {
-        fprintf( stderr, "InstallLsp: MultiByteToWidechar failed to convert '%s': Error = %d\n",
-                lpszLspPathAndFile, GetLastError() );
-        goto cleanup;
-    }
-
-    if (lpszLspPathAndFile32) 
-    {
-        rc = MultiByteToWideChar(
-                CP_ACP,
-                0,
-                lpszLspPathAndFile32,
-                (int) strlen( lpszLspPathAndFile32 ) + 1,
-                wszFullProviderPath32,
-                MAX_PATH
-                );
-        if ( 0 == rc )
-        {
-            fprintf( stderr, "InstallLsp: MultiByteToWidechar failed to convert '%s': Error = %d\n",
-                    lpszLspPathAndFile32, GetLastError() );
-            goto cleanup;
-        }
-    }
-    else
-    {
-        wszFullProviderPath32[0] = '\0';
+		lpwszLspPathAndFile32 = TEXT("");
     }
 
     // Verify there's at least one entry to layer over
@@ -119,10 +68,14 @@ InstallLsp(
         goto cleanup;
     }
 
-    printf("LSP name is '%S'\n", wszLspName);
+    wprintf(TEXT("LSP name is '%S'\n"), lpwszLspName);
 
-    // Retrieve the GUID under which the LSP is to be installed
-    RetrieveLspGuid( lpszLspPathAndFile, &ProviderBaseGuid );
+	// Retrieve the GUID under which the LSP is to be installed
+#ifdef _WIN64
+	RetrieveLspGuid(lpwszLspPathAndFile, &ProviderBaseGuid);
+#else
+	RetrieveLspGuid(lpwszLspPathAndFile32, &ProviderBaseGuid);
+#endif // _WIN64
 
     osv.dwOSVersionInfoSize = sizeof(osv);
     GetVersionEx( (LPOSVERSIONINFO) &osv );
@@ -133,9 +86,9 @@ InstallLsp(
 
         rc = InstallProviderVista(
                 eCatalog,
-                wszLspName,
-                wszFullProviderPath,
-                wszFullProviderPath32,
+				lpwszLspName,
+				lpwszLspPathAndFile,
+				lpwszLspPathAndFile32,
                &ProviderBaseGuid,
                 dwCatalogIdArrayCount,
                 pdwCatalogIdArray,
@@ -155,7 +108,7 @@ InstallLsp(
         //
 
         // Create the 'dummy' protocol entry
-        pDummyEntry = CreateDummyEntry( eCatalog, pdwCatalogIdArray[ 0 ], wszLspName, IfsProvider );
+        pDummyEntry = CreateDummyEntry( eCatalog, pdwCatalogIdArray[ 0 ], lpwszLspName, IfsProvider );
         if (pDummyEntry == NULL)
         {
             fprintf(stderr, "InstallLsp: CreateDummyEntry failed!\n");
@@ -166,7 +119,7 @@ InstallLsp(
         rc = InstallProvider(
                 eCatalog, 
                 &ProviderBaseGuid, 
-                wszFullProviderPath, 
+				lpwszLspPathAndFile,
                 pDummyEntry, 
                 1
                 );
@@ -182,14 +135,14 @@ InstallLsp(
 
         if ( FALSE == IfsProvider )
         {
-            rc = InstallNonIfsLspProtocolChains( eCatalog, &ProviderBaseGuid, wszLspName,
-                    wszFullProviderPath, pdwCatalogIdArray, dwCatalogIdArrayCount );
+            rc = InstallNonIfsLspProtocolChains( eCatalog, &ProviderBaseGuid, lpwszLspName,
+					lpwszLspPathAndFile, pdwCatalogIdArray, dwCatalogIdArrayCount );
 
         }
         else
         {
-            rc = InstallIfsLspProtocolChains( eCatalog, &ProviderBaseGuid, wszLspName,
-                    wszFullProviderPath, pdwCatalogIdArray, dwCatalogIdArrayCount );
+            rc = InstallIfsLspProtocolChains( eCatalog, &ProviderBaseGuid, lpwszLspName,
+					lpwszLspPathAndFile, pdwCatalogIdArray, dwCatalogIdArrayCount );
         }
 
         if ( SOCKET_ERROR == rc )

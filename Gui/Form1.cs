@@ -29,7 +29,7 @@ namespace Gui
         private void button3_Click(object sender, EventArgs e)
         {
             MessageBox.Show(
-                LspManager.InstallSfLsp().ToString()
+                LspManager.InstallSfLsp(textBox1.Text, textBox2.Text).ToString()
                 );
         }
     }

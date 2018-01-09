@@ -26,6 +26,9 @@ const REQUIRE_PROTOCOL_INFO gRequireProtocolInfos[REQUIRE_PROTOCOL_LEN] = {
 	//{AF_INET, SOCK_RAW, IPPROTO_RAW}//IP4|RAW
 };
 
+LPWSCUPDATEPROVIDER  fnWscUpdateProvider,
+fnWscUpdateProvider32;
+
 LM_API 
 int LM_API_CALL VerifySfLspIsInstalled()
 {
@@ -45,8 +48,9 @@ int LM_API_CALL VerifySfLspIsInstalled()
 	}
 
 	for (i = 0; i < iTotalProtocols; i++) {
-		if (0 == memcmp(&pProtocolInfo[j].ProviderId, &gProviderGuid, sizeof(gProviderGuid))) {
-			dummyLspId = pProtocolInfo[j].dwCatalogEntryId;
+		if (0 == memcmp(&pProtocolInfo[i].ProviderId, &gProviderGuid, sizeof(gProviderGuid))) {
+			dummyLspId = pProtocolInfo[i].dwCatalogEntryId;
+			break;
 		}
 	}
 
@@ -55,18 +59,13 @@ int LM_API_CALL VerifySfLspIsInstalled()
 	}
 	
 	count = 0;
-	for (i = 0; i < REQUIRE_PROTOCOL_LEN; i++) {
+	for (i = 0; i < iTotalProtocols; i++) {
 
-		for (j = 0; j < iTotalProtocols; j++) {
-
-			if (pProtocolInfo[j].ProtocolChain.ChainLen > 1 &&
-				pProtocolInfo[j].ProtocolChain.ChainEntries[0] == dummyLspId &&
-				gRequireProtocolInfos[i].af == pProtocolInfo[j].iAddressFamily &&
-				gRequireProtocolInfos[i].type == pProtocolInfo[j].iSocketType && 
-				gRequireProtocolInfos[i].protocol == pProtocolInfo[j].iProtocol) {
-				count++;
-			}
-
+		if (pProtocolInfo[i].ProtocolChain.ChainLen > 1 &&
+			pProtocolInfo[i].ProtocolChain.ChainEntries[0] == dummyLspId) {
+			count++;
+		} else if(pProtocolInfo[i].dwCatalogEntryId == dummyLspId) {
+			count++;
 		}
 
 	}
@@ -102,6 +101,9 @@ int LM_API_CALL UninstallSfLsp()
 	for (i = 0; i < iTotalProtocols; i++) {
 		if (0 == memcmp( &pProtocolInfo[i].ProviderId, &gProviderGuid, sizeof( gProviderGuid ) )) {
 			dummyLspId = pProtocolInfo[i].dwCatalogEntryId;
+			DeinstallProvider(gCatalog, &pProtocolInfo[i].ProviderId);
+			rc++;
+			break;
 		}
 	}
 
@@ -112,7 +114,6 @@ int LM_API_CALL UninstallSfLsp()
 			if ( ( pProtocolInfo[i].dwCatalogEntryId == dummyLspId ) || 
 				( pProtocolInfo[i].ProtocolChain.ChainLen > 1 &&
 				pProtocolInfo[i].ProtocolChain.ChainEntries[0] == dummyLspId ) ) {
-
 				DeinstallProvider(gCatalog, &pProtocolInfo[i].ProviderId);
 				rc++;
 			}
@@ -160,7 +161,7 @@ cleanup:
 }
 
 LM_API
-int LM_API_CALL InstallSfLsp()
+int LM_API_CALL InstallSfLsp(LPWCH lpszLspPathAndFile, LPWCH lpszLspPathAndFile32)
 {
 	LPWSAPROTOCOL_INFOW pProtocolInfo = NULL;
 	DWORD				*pdwCatalogIdArray = NULL, 
@@ -171,8 +172,10 @@ int LM_API_CALL InstallSfLsp()
 						i = 0, 
 						j = 0,
 						rc = 0;
-	char *lpszLspPathAndFile = "D:\Source\SpeedForce-Windows\bin\x64\Debug\lsp_x64.dll";
-	char *lpszLspPathAndFile32 = "D:\Source\SpeedForce-Windows\bin\Win32\Debug\lsp.dll";
+
+	MessageBox(NULL, lpszLspPathAndFile, lpszLspPathAndFile32, MB_OK);
+	return 0;
+
 	pProtocolInfo = EnumerateProviders(gCatalog, &iTotalProtocols);
 	if (NULL == pProtocolInfo) {
 		dbgprint(
@@ -228,7 +231,7 @@ int LM_API_CALL InstallSfLsp()
 
 	rc = InstallLsp(
 		gCatalog,
-		DEFAULT_LSP_NAME,
+		TEXT(DEFAULT_LSP_NAME),
 		lpszLspPathAndFile,
 		lpszLspPathAndFile32,
 		dwCatalogIdArrayCount,

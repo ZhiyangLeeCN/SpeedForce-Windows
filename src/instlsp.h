@@ -44,6 +44,7 @@
 #define MAX(a,b)                ( (a) > (b) ? (a) : (b) )
 #define MIN(a,b)                ( (a) < (b) ? (a) : (b) )
 
+
 typedef int (WSAAPI * LPWSCINSTALLPROVIDERANDCHAINS)(
         LPGUID lpProviderId,
         LPWSTR lpszProviderDllPath,
@@ -109,9 +110,9 @@ extern HMODULE              gModule;
 int
 InstallLsp(
         WINSOCK_CATALOG eCatalog,
-        __in_z char    *lpszLspName,
-        __in_z char    *lpszLspPathAndFile,
-        __in_z char    *lpszLspPathAndFile32,
+		LPWCH			lpcwszLspName,
+		LPWCH			lpcwszLspPathAndFile,
+		LPWCH			lpcwszLspPathAndFile32,
         DWORD           dwCatalogIdArrayCount,
         DWORD          *pdwCatalogIdArray,
         BOOL            IfsProvider,
@@ -373,8 +374,8 @@ IsEqualProtocolEntries(
 // Given the full path and name of LSP, load it and call the GetLspGuid export
 int
 RetrieveLspGuid(
-        __in_z char    *LspPath,
-        GUID    *Guid
+		LPWCH		LspPath,
+        GUID		*Guid
         );
 
 // Looks up whether the given provider is an IFS provider or not

@@ -166,7 +166,6 @@
     <ClCompile Include="src\lspmap.cpp" />
     <ClCompile Include="src\lsputil.cpp" />
     <ClCompile Include="src\lsp_manager_api.cpp" />
-    <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\prnpinfo.cpp" />
     <ClCompile Include="src\provider.cpp" />
   </ItemGroup>

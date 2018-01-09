@@ -216,7 +216,7 @@ IsEqualProtocolEntries(
 //
 int
 RetrieveLspGuid(
-    __in_z char    *LspPath,
+	LPWCH    LspPath,
     GUID    *Guid
     )
 {
@@ -225,7 +225,7 @@ RetrieveLspGuid(
     int             retval = SOCKET_ERROR;
 
     // Load teh library
-    hMod = LoadLibraryA( LspPath );
+    hMod = LoadLibraryW( LspPath );
     if ( NULL == hMod )
     {
         fprintf( stderr, "RetrieveLspGuid: LoadLibraryA failed: %d\n", GetLastError() );

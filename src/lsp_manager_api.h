@@ -15,6 +15,6 @@ LM_API int LM_API_CALL VerifySfLspIsInstalled();
 
 LM_API int LM_API_CALL UninstallSfLsp();
 
-LM_API int LM_API_CALL InstallSfLsp();
+LM_API int LM_API_CALL InstallSfLsp(LPWCH lpszLspPathAndFile, LPWCH lpszLspPathAndFile32);
 
 #endif // !_LSP_MANAGER_API_H

@@ -16,8 +16,8 @@ namespace Gui
         [DllImport(LSP_MANAGER_DLL, EntryPoint = "UninstallSfLsp")]
         private static extern int _uninstallSfLsp();
 
-        [DllImport(LSP_MANAGER_DLL, EntryPoint = "InstallSfLsp")]
-        private static extern int _installSfLsp();
+        [DllImport(LSP_MANAGER_DLL, CharSet = CharSet.Unicode, EntryPoint = "InstallSfLsp")]
+        private static extern int _installSfLsp(String lspPathAndFile, String lspPathAndFile32);
 
         public static int VerifySfLspIsInstalled()
         {
@@ -29,9 +29,9 @@ namespace Gui
             return _uninstallSfLsp();
         }
 
-        public static int InstallSfLsp()
+        public static int InstallSfLsp(String lspPathAndFile, String lspPathAndFile32)
         {
-            return _installSfLsp();
+            return _installSfLsp(lspPathAndFile, lspPathAndFile32);
         }
     }
 }
