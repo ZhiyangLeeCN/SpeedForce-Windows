@@ -5,13 +5,27 @@
     <ClCompile Include="src\provider.cpp" />
     <ClCompile Include="src\sockinfo.cpp" />
     <ClCompile Include="src\spi.cpp" />
+    <ClCompile Include="src\socks\V5\socks_v5.cpp">
+      <Filter>socks\v5</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lspcommon.h" />
     <ClInclude Include="src\lspdef.h" />
     <ClInclude Include="src\lspguid.h" />
+    <ClInclude Include="src\socks\V5\socks_v5.h">
+      <Filter>socks\v5</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\lsp.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="socks">
+      <UniqueIdentifier>{6a4d6968-0d17-4566-8502-ae754c4c18b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="socks\v5">
+      <UniqueIdentifier>{afe00af5-41e6-4c07-b239-40837cb0d609}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

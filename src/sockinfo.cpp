@@ -67,6 +67,7 @@ CreateSocketContext(
 
     newContext->Socket     = Socket;
     newContext->Provider   = Provider;
+	newContext->Nbio       = FALSE;
     newContext->Proxied    = FALSE;
 
     EnterCriticalSection( &Provider->ProviderCritSec );

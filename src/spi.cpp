@@ -205,8 +205,8 @@ WSPConnect(
 
     rc = sockContext->Provider->NextProcTable.lpWSPConnect(
             s,
-            proxyAddr, 
-            proxyLen, 
+			name,
+            namelen, 
             lpCallerData, 
             lpCalleeData,
             lpSQOS, 
@@ -217,6 +217,68 @@ WSPConnect(
 cleanup:
 
     return rc;
+}
+
+int WSPAPI
+WSPIoctl(
+	SOCKET          s,
+	DWORD           dwIoControlCode,
+	LPVOID          lpvInBuffer,
+	DWORD           cbInBuffer,
+	LPVOID          lpvOutBuffer,
+	DWORD           cbOutBuffer,
+	LPDWORD         lpcbBytesReturned,
+	LPWSAOVERLAPPED lpOverlapped,
+	LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+	LPWSATHREADID   lpThreadId,
+	LPINT           lpErrno
+)
+{
+	SOCKET_CONTEXT *sockContext = NULL;
+	GUID            ConnectExGuid = WSAID_CONNECTEX;
+	int             rc = NO_ERROR;
+	u_long			*arp;
+
+	// Retrieve the socket context
+	sockContext = FindSocketContext(s);
+	if (NULL == sockContext)
+	{
+		*lpErrno = WSAENOTSOCK;
+		rc = SOCKET_ERROR;
+		goto cleanup;
+	}
+
+	ASSERT(sockContext->Provider->NextProcTable.lpWSPIoctl);
+
+	// Pass the call to the lower layer
+	rc = sockContext->Provider->NextProcTable.lpWSPIoctl(
+		s,
+		dwIoControlCode,
+		lpvInBuffer,
+		cbInBuffer,
+		lpvOutBuffer,
+		cbOutBuffer,
+		lpcbBytesReturned,
+		lpOverlapped,
+		lpCompletionRoutine,
+		lpThreadId,
+		lpErrno
+	);
+
+	if (dwIoControlCode == FIONBIO && 0 == rc) {
+
+		arp = (u_long *)lpvInBuffer;
+		if (*arp > 0) {
+			sockContext->Nbio = TRUE;
+		} else {
+			sockContext->Nbio = FALSE;
+		}
+
+	}
+
+cleanup:
+
+	return rc;
 }
 
 int WSPAPI
@@ -312,6 +374,138 @@ cleanup:
 
 }
 
+SOCKET WSPAPI
+WSPSocket(
+	int                 af,
+	int                 type,
+	int                 protocol,
+	LPWSAPROTOCOL_INFOW lpProtocolInfo,
+	GROUP               g,
+	DWORD               dwFlags,
+	LPINT               lpErrno
+)
+{
+	WSAPROTOCOL_INFOW   InfoCopy = { 0 };
+	SOCKET_CONTEXT     *sockContext = NULL;
+	PROVIDER           *lowerProvider = NULL;
+	SOCKET              nextProviderSocket = INVALID_SOCKET,
+						sret = INVALID_SOCKET;
+	int                 rc;
+
+	// Find the LSP entry which matches the given provider info
+	lowerProvider = FindMatchingLspEntryForProtocolInfo(
+		lpProtocolInfo,
+		gLayerInfo,
+		gLayerCount
+	);
+	if (NULL == lowerProvider)
+	{
+		dbgprint("WSPSocket: FindMatchingLspEntryForProtocolInfo failed!");
+		goto cleanup;
+	}
+
+	if (0 == lowerProvider->StartupCount)
+	{
+		rc = InitializeProvider(lowerProvider, MAKEWORD(2, 2), lpProtocolInfo,
+			gMainUpCallTable, lpErrno);
+		if (SOCKET_ERROR == rc)
+		{
+			dbgprint("WSPSocket: InitializeProvider failed: %d", *lpErrno);
+			goto cleanup;
+		}
+	}
+
+	// If the next layer is a base, substitute the provider structure with the
+	//    base provider's
+	if (BASE_PROTOCOL == lowerProvider->NextProvider.ProtocolChain.ChainLen)
+	{
+		memcpy(&InfoCopy, &lowerProvider->NextProvider, sizeof(InfoCopy));
+		InfoCopy.dwProviderReserved = lpProtocolInfo->dwProviderReserved;
+		if (af == FROM_PROTOCOL_INFO)
+			InfoCopy.iAddressFamily = lpProtocolInfo->iAddressFamily;
+		if (type == FROM_PROTOCOL_INFO)
+			InfoCopy.iSocketType = lpProtocolInfo->iSocketType;
+		if (protocol == FROM_PROTOCOL_INFO)
+			InfoCopy.iProtocol = lpProtocolInfo->iProtocol;
+
+		lpProtocolInfo = &InfoCopy;
+	}
+
+	ASSERT(lowerProvider->NextProcTable.lpWSPSocket);
+
+	//
+	// Create the socket from the lower layer
+	//
+	nextProviderSocket = lowerProvider->NextProcTable.lpWSPSocket(
+		af,
+		type,
+		protocol,
+		lpProtocolInfo,
+		g,
+		dwFlags,
+		lpErrno
+	);
+	if (INVALID_SOCKET == nextProviderSocket)
+	{
+		dbgprint("WSPSocket: NextProcTable.WSPSocket failed: %d", *lpErrno);
+		goto cleanup;
+	}
+
+	//
+	// Create the context information to be associated with this socket
+	//
+	sockContext = CreateSocketContext(
+		lowerProvider,
+		nextProviderSocket,
+		lpErrno
+	);
+	if (NULL == sockContext)
+	{
+		dbgprint("WSPSocket: CreateSocketContext failed: %d", *lpErrno);
+		goto cleanup;
+	}
+
+	//
+	// Associate ownership of this handle with our LSP
+	//
+	sret = gMainUpCallTable.lpWPUModifyIFSHandle(
+		lowerProvider->LayerProvider.dwCatalogEntryId,
+		nextProviderSocket,
+		lpErrno
+	);
+	if (INVALID_SOCKET == sret)
+	{
+		dbgprint("WSPSocket: WPUModifyIFSHandle failed: %d", *lpErrno);
+		goto cleanup;
+	}
+
+	ASSERT(sret == nextProviderSocket);
+
+	return nextProviderSocket;
+
+cleanup:
+
+	// If an error occured close the socket if it was already created
+	if ((NULL != sockContext) && (NULL != lowerProvider) &&
+		(INVALID_SOCKET != nextProviderSocket))
+	{
+		rc = lowerProvider->NextProcTable.lpWSPCloseSocket(
+			nextProviderSocket,
+			lpErrno
+		);
+		if (SOCKET_ERROR == rc)
+		{
+			dbgprint("WSPSocket: WSPCloseSocket failed: %d", *lpErrno);
+		}
+
+	}
+	if ((NULL != sockContext) && (NULL != lowerProvider))
+		FreeSocketContext(lowerProvider, sockContext);
+
+	return INVALID_SOCKET;
+}
+
+
 int WSPAPI 
 WSPStartup(
     WORD                wVersion,
@@ -396,6 +590,8 @@ WSPStartup(
     lpProcTable->lpWSPConnect       = WSPConnect;
     lpProcTable->lpWSPSend          = WSPSend;
 	lpProcTable->lpWSPSendTo		= WSPSendTo;
+	lpProcTable->lpWSPSocket		= WSPSocket;
+	lpProcTable->lpWSPIoctl			= WSPIoctl;
 
     memcpy( lpWSPData, &loadProvider->WinsockVersion, sizeof( *lpWSPData ) );
 

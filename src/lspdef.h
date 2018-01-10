@@ -18,6 +18,8 @@ typedef struct _SOCKET_CONTEXT
 
     int                 AddressLength;
 
+	BOOL				Nbio; // is non-blocking
+
     BOOL                Proxied;
 
     LIST_ENTRY          Link;

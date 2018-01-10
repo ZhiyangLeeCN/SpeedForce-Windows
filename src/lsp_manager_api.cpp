@@ -1,13 +1,12 @@
 #include "instlsp.h"
 #include "lspguid.h"
-#include <windows.h>
 
 #define LM_API_EXPORTS
 
 #include "lsp_manager_api.h"
 
 #ifdef _WIN64
-const WINSOCK_CATALOG     gCatalog = LspCatalog64Only;
+const WINSOCK_CATALOG     gCatalog = LspCatalogBoth;
 #else
 const WINSOCK_CATALOG     gCatalog = LspCatalog32Only;
 #endif
