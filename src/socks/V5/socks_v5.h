@@ -17,7 +17,7 @@
 typedef struct _METHOD_SELECT_REQUEST {
 	unsigned char ver;
 	unsigned char nmethods;
-	unsigned char methods[255];
+	unsigned char methods[0];
 } METHOD_SELECT_REQUEST;
 
 typedef struct _METHOD_SELECT_RESPONSE {
@@ -30,6 +30,7 @@ typedef struct _SOCKS5_REQUEST {
 	unsigned char cmd;
 	unsigned char rsv;
 	unsigned char atyp;
+	unsigned char addr[0];
 } SOCKS5_REQUEST;
 
 typedef struct _SOCKS5_RESPONSE {
@@ -41,12 +42,11 @@ typedef struct _SOCKS5_RESPONSE {
 
 #pragma pack()
 
-int ConnectSocksV5Server(
+int ConnectSocksV5ServerForTcp(
 		SOCKET   s,
 		SOCKADDR *socksServerAddr,
 		SOCKADDR *destAddr,
-		LPWCH    userName,
-		LPWCH    password
+		int		 *lpErrorno
 	);
 
 #endif // !_SOCKS_V5_H_
