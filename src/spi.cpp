@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "socks\V5\socks_v5.h"
+
 #pragma warning(disable:4127)       // Disable "conditional expression is constant" warning
 
 #define DEFAULT_PRINT_BUFFER    512
@@ -191,7 +193,10 @@ WSPConnect(
     SOCKET_CONTEXT *sockContext = NULL;
     SOCKADDR       *proxyAddr = NULL;
     int             proxyLen = 0,
-                    rc = SOCKET_ERROR;
+                    rc = SOCKET_ERROR, 
+					socksErrono = -1;
+	u_long			disabled = 0, enabled = 1;
+	BOOL			isNbio;
 
     // Find the socket context
     sockContext = FindSocketContext( s );
@@ -203,7 +208,32 @@ WSPConnect(
 
     ASSERT( sockContext->Provider->NextProcTable.lpWSPConnect );
 
-    rc = sockContext->Provider->NextProcTable.lpWSPConnect(
+	sockContext->AddressLength = namelen;
+	memcpy(&sockContext->OriginalAddress, name, namelen);
+	memcpy(&sockContext->ProxiedAddress, name, namelen);
+	((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_port = htons(1080);
+	sockContext->Proxied = TRUE;
+
+	isNbio = sockContext->Nbio;
+	if (isNbio) {
+		ioctlsocket(s, FIONBIO, &disabled);
+	}
+
+	rc = ConnectSocksV5ServerForTcp(
+		s, 
+		(SOCKADDR *)&sockContext->ProxiedAddress, 
+		(SOCKADDR *)&sockContext->OriginalAddress, 
+		&socksErrono
+	);
+
+	if (isNbio) {
+		ioctlsocket(s, FIONBIO, &enabled);
+	}
+
+	if (0 != rc) {
+
+		    rc = sockContext->Provider->NextProcTable.lpWSPConnect(
             s,
 			name,
             namelen, 
@@ -213,6 +243,8 @@ WSPConnect(
             lpGQOS, 
             lpErrno
             );
+
+	}
 
 cleanup:
 
@@ -505,6 +537,135 @@ cleanup:
 	return INVALID_SOCKET;
 }
 
+int WSPPauseEvent(SOCKET s, SOCKET_CONTEXT* context)
+{
+	if (context == NULL || s == INVALID_SOCKET)
+	{
+		return SOCKET_ERROR;
+	}
+	int err = 0; // THE CLEANUP BIND EVENT OBJECT
+	if (context->Provider->NextProcTable.lpWSPEventSelect(s, 0, NULL, &err))
+	{
+		return ECONNRESET;
+	}
+
+	EnterCriticalSection(&context->Provider->ProviderCritSec);
+
+	for (auto iter = context->HWndList.begin(); iter != context->HWndList.end(); iter++) {
+		err = 0;
+		if (context->Provider->NextProcTable.lpWSPAsyncSelect(s, *iter, 0, 0, &err))
+		{
+			LeaveCriticalSection(&context->Provider->ProviderCritSec);
+			return ECONNRESET; // WSAAsyncSelect(s, hWnd, 0, 0);
+		}
+
+	}
+
+	LeaveCriticalSection(&context->Provider->ProviderCritSec);
+	return 0;
+}
+
+int WSPAPI WSPEventSelect(
+	SOCKET s,
+	WSAEVENT hEventObject,
+	long lNetworkEvents,
+	LPINT lpErrno
+	)
+{
+	PROVIDER           *loadProvider = NULL;
+	SOCKET_CONTEXT     *sockContext = NULL;
+	int                 rc;
+
+	ASSERT(sockContext->Provider->NextProcTable.lpWSPEventSelect);
+
+	sockContext = FindSocketContext(s);
+	if (NULL == sockContext)
+	{
+		*lpErrno = WSAENOTSOCK;
+		goto cleanup;
+	}
+
+	rc = sockContext->Provider->NextProcTable.lpWSPEventSelect(
+		s,
+		hEventObject,
+		lNetworkEvents,
+		lpErrno
+	);
+
+	if (0 == rc) {
+
+		EnterCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+		SOCKET_EVENT_CONTEXT* evt = new SOCKET_EVENT_CONTEXT;
+		evt->hEvent = (__int64)hEventObject;
+		evt->hWnd = NULL;
+		evt->wMsg = 0;
+		evt->lNetworkEvents = lNetworkEvents;
+
+		sockContext->Events.push_back(evt);
+
+		LeaveCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+	}
+
+cleanup:
+
+	return rc;
+
+}
+
+int WSPAPI WSPAsyncSelect(
+	SOCKET s,
+	HWND hWnd,
+	unsigned int wMsg,
+	long lEvent,
+	LPINT lpErrno
+	)
+{
+	PROVIDER           *loadProvider = NULL;
+	SOCKET_CONTEXT     *sockContext = NULL;
+	int                 rc;
+
+	sockContext = FindSocketContext(s);
+	if (NULL == sockContext)
+	{
+		*lpErrno = WSAENOTSOCK;
+		goto cleanup;
+	}
+
+	ASSERT(sockContext->Provider->NextProcTable.lpWSPAsyncSelect);
+
+	rc = sockContext->Provider->NextProcTable.lpWSPAsyncSelect(
+		s,
+		hWnd,
+		wMsg,
+		lEvent,
+		lpErrno
+	);
+
+	if (0 == rc) {
+
+		EnterCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+		SOCKET_EVENT_CONTEXT* evt = new SOCKET_EVENT_CONTEXT;
+		evt->hEvent = (__int64)lEvent;
+		evt->hWnd = hWnd;
+		evt->wMsg = wMsg;
+		evt->lNetworkEvents = NULL;
+
+		sockContext->Events.push_back(evt);
+		sockContext->HWndList.push_back(hWnd);
+
+		LeaveCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+	}
+
+cleanup:
+
+	return rc;
+
+}
+
 
 int WSPAPI 
 WSPStartup(
@@ -592,6 +753,8 @@ WSPStartup(
 	lpProcTable->lpWSPSendTo		= WSPSendTo;
 	lpProcTable->lpWSPSocket		= WSPSocket;
 	lpProcTable->lpWSPIoctl			= WSPIoctl;
+	lpProcTable->lpWSPAsyncSelect	= WSPAsyncSelect;
+	lpProcTable->lpWSPEventSelect	= WSPEventSelect;
 
     memcpy( lpWSPData, &loadProvider->WinsockVersion, sizeof( *lpWSPData ) );
 

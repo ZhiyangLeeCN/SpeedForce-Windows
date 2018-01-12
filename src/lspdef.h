@@ -6,23 +6,41 @@
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 
+#include <vector>
+
 #include "lspcommon.h"
+
+using namespace std;
+
+typedef struct _SOCKET_EVENT_CONTEXT
+{
+	__int64 hEvent;
+	__int32 lNetworkEvents;
+	HWND hWnd;
+	unsigned __int32 wMsg;
+} SOCKET_EVENT_CONTEXT;
 
 typedef struct _SOCKET_CONTEXT
 {
-    SOCKET              Socket;     // Lower provider socket handle
-    PROVIDER           *Provider;   // Pointer to the provider from which socket was created
+    SOCKET						 Socket;     // Lower provider socket handle
+    PROVIDER					 *Provider;   // Pointer to the provider from which socket was created
 
-    SOCKADDR_STORAGE    ProxiedAddress;
-    SOCKADDR_STORAGE    OriginalAddress;
+    SOCKADDR_STORAGE			 ProxiedAddress;
+    SOCKADDR_STORAGE			 OriginalAddress;
 
-    int                 AddressLength;
+    int							  AddressLength;
 
-	BOOL				Nbio; // is non-blocking
+	BOOL						  Nbio; // is non-blocking
 
-    BOOL                Proxied;
+    BOOL						  Proxied;
 
-    LIST_ENTRY          Link;
+	BOOL						  RequireHandshake;
+
+	vector<SOCKET_EVENT_CONTEXT*> Events;
+
+	vector<HWND>				  HWndList;
+
+    LIST_ENTRY					  Link;
 
 } SOCKET_CONTEXT;
 

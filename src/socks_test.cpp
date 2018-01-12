@@ -20,16 +20,21 @@ int main()
 
 	int lpErrorno;
 
-	int rc = ConnectSocksV5ServerForTcp(
-		s, 
-		(SOCKADDR *)&socksServerAddr, 
-		(SOCKADDR *)&destAddr, 
-		&lpErrorno
-	);
+	//int rc = ConnectSocksV5ServerForTcp(
+	//	s, 
+	//	(SOCKADDR *)&socksServerAddr, 
+	//	(SOCKADDR *)&destAddr, 
+	//	&lpErrorno
+	//);
+
+	int rc = connect(s, (SOCKADDR *)&destAddr, sizeof(destAddr));
 
 	if (rc == 0) {
 		printf("CONNECT SUCCESS\n");
-		send(s, "Hi", 3, 0);
+		rc = send(s, "Hi\n", 4, 0);
+		if (SOCKET_ERROR == rc) {
+			printf("SEND ERROR:%d\n", WSAGetLastError());
+		}
 	}
 	else {
 		printf("CONNECT ERROR\n");

@@ -22,10 +22,10 @@
   </ItemGroup>
   <ItemGroup>
     <Filter Include="socks">
-      <UniqueIdentifier>{6a4d6968-0d17-4566-8502-ae754c4c18b7}</UniqueIdentifier>
+      <UniqueIdentifier>{70d30edf-59c7-4897-a9aa-562964bad30e}</UniqueIdentifier>
     </Filter>
     <Filter Include="socks\V5">
-      <UniqueIdentifier>{afe00af5-41e6-4c07-b239-40837cb0d609}</UniqueIdentifier>
+      <UniqueIdentifier>{a92d08e1-3503-4066-b90f-fd7bdde2448f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

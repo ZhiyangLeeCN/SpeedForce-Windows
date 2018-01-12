@@ -89,12 +89,14 @@
     <ClCompile Include="src\lspguid.cpp" />
     <ClCompile Include="src\provider.cpp" />
     <ClCompile Include="src\sockinfo.cpp" />
+    <ClCompile Include="src\socks\V5\socks_v5.cpp" />
     <ClCompile Include="src\spi.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lspcommon.h" />
     <ClInclude Include="src\lspdef.h" />
     <ClInclude Include="src\lspguid.h" />
+    <ClInclude Include="src\socks\V5\socks_v5.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\lsp.def" />

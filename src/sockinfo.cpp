@@ -55,20 +55,18 @@ CreateSocketContext(
 {
     SOCKET_CONTEXT   *newContext = NULL;
 
-    newContext = (SOCKET_CONTEXT *) LspAlloc(
-            sizeof( SOCKET_CONTEXT ),
-            lpErrno
-            );
+	newContext = new SOCKET_CONTEXT;
     if ( NULL == newContext )
     {
         dbgprint("CreateSocketContext: LspAlloc failed: %d", *lpErrno );
         goto cleanup;
     }
 
-    newContext->Socket     = Socket;
-    newContext->Provider   = Provider;
-	newContext->Nbio       = FALSE;
-    newContext->Proxied    = FALSE;
+    newContext->Socket			 = Socket;
+    newContext->Provider		 = Provider;
+	newContext->Nbio			 = FALSE;
+    newContext->Proxied			 = FALSE;
+	newContext->RequireHandshake = TRUE;
 
     EnterCriticalSection( &Provider->ProviderCritSec );
 
@@ -92,7 +90,13 @@ FreeSocketContext(
     EnterCriticalSection( &Provider->ProviderCritSec );
 
     RemoveEntryList( &Context->Link );
-    LspFree( Context );
+
+	auto iter = Context->Events.begin();
+	for (; iter != Context->Events.end(); iter++) {
+		delete *iter;
+	}
+
+	delete Context;
 
     LeaveCriticalSection( &Provider->ProviderCritSec );
 
