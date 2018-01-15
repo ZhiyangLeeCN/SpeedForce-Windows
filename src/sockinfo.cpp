@@ -122,8 +122,12 @@ FreeSocketContextList(
 
         context = CONTAINING_RECORD( lptr, SOCKET_CONTEXT, Link );
 
-        // Context is already removed so just free it
-        LspFree( context );
+		auto iter = context->Events.begin();
+		for (; iter != context->Events.end(); iter++) {
+			delete *iter;
+		}
+
+		delete context;
     }
 
     return;

@@ -2,6 +2,7 @@
 #define _SOCKS_V5_H_
 
 #include <winsock2.h>
+#include <ws2spi.h>
 
 #define SVERSION 0x05
 #define CONNECT 0x01
@@ -42,11 +43,11 @@ typedef struct _SOCKS5_RESPONSE {
 
 #pragma pack()
 
-int ConnectSocksV5ServerForTcp(
-		SOCKET   s,
-		SOCKADDR *socksServerAddr,
-		SOCKADDR *destAddr,
-		int		 *lpErrorno
+int SockerV5TCPHandshake(
+		SOCKET			s,
+		SOCKADDR		*socksServerAddr,
+		SOCKADDR		*destAddr,
+		int				*lpErrorno
 	);
 
 #endif // !_SOCKS_V5_H_

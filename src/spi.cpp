@@ -152,6 +152,7 @@ WSPCloseSocket(
         )
 {
     SOCKET_CONTEXT *sockContext = NULL;
+	PROVIDER	   *provider = NULL;
     int             rc = SOCKET_ERROR;
 
     // Find the socket context and remove it from the provider's list of sockets
@@ -162,6 +163,8 @@ WSPCloseSocket(
         goto cleanup;
     }
 
+	provider = sockContext->Provider;
+
     ASSERT( sockContext->Provider->NextProcTable.lpWSPCloseSocket );
 
     // Pass the socket down to close it
@@ -170,8 +173,7 @@ WSPCloseSocket(
             lpErrno
             );
 
-    // Just free the structure as its alreayd removed from the provider's list
-    LspFree( sockContext );
+	FreeSocketContext(provider, sockContext);
 
 cleanup:
 
@@ -209,42 +211,33 @@ WSPConnect(
     ASSERT( sockContext->Provider->NextProcTable.lpWSPConnect );
 
 	sockContext->AddressLength = namelen;
-	memcpy(&sockContext->OriginalAddress, name, namelen);
-	memcpy(&sockContext->ProxiedAddress, name, namelen);
-	((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	::memcpy(&sockContext->OriginalAddress, name, namelen);
+	::memcpy(&sockContext->ProxiedAddress, name, namelen);
+	((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_addr.s_addr = inet_addr("127.0.0.1");
 	((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_port = htons(1080);
-	sockContext->Proxied = TRUE;
 
-	isNbio = sockContext->Nbio;
-	if (isNbio) {
-		ioctlsocket(s, FIONBIO, &disabled);
+	if ( ((SOCKADDR_IN *)name)->sin_addr.s_addr == ((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_addr.s_addr && 
+		( ((SOCKADDR_IN *)name)->sin_port == ((SOCKADDR_IN *)&sockContext->ProxiedAddress)->sin_port || 
+		((SOCKADDR_IN *)name)->sin_port == htons(50088) )
+		) {
+		sockContext->Proxied = FALSE;
+		sockContext->RequireHandshake = FALSE;
+	} else {
+		sockContext->Proxied = TRUE;
+		sockContext->RequireHandshake = TRUE;
+		::memcpy((void *)name, &sockContext->ProxiedAddress, namelen);
 	}
 
-	rc = ConnectSocksV5ServerForTcp(
-		s, 
-		(SOCKADDR *)&sockContext->ProxiedAddress, 
-		(SOCKADDR *)&sockContext->OriginalAddress, 
-		&socksErrono
+	rc = sockContext->Provider->NextProcTable.lpWSPConnect(
+		s,
+		name,
+		namelen,
+		lpCallerData,
+		lpCalleeData,
+		lpSQOS,
+		lpGQOS,
+		lpErrno
 	);
-
-	if (isNbio) {
-		ioctlsocket(s, FIONBIO, &enabled);
-	}
-
-	if (0 != rc) {
-
-		    rc = sockContext->Provider->NextProcTable.lpWSPConnect(
-            s,
-			name,
-            namelen, 
-            lpCallerData, 
-            lpCalleeData,
-            lpSQOS, 
-            lpGQOS, 
-            lpErrno
-            );
-
-	}
 
 cleanup:
 
@@ -313,6 +306,79 @@ cleanup:
 	return rc;
 }
 
+int WSPPauseEvent(SOCKET s, SOCKET_CONTEXT* context)
+{
+	if (context == NULL || s == INVALID_SOCKET)
+	{
+		return SOCKET_ERROR;
+	}
+	int err = 0; // THE CLEANUP BIND EVENT OBJECT
+	if (context->Provider->NextProcTable.lpWSPEventSelect(s, 0, NULL, &err))
+	{
+		return ECONNRESET;
+	}
+
+	EnterCriticalSection(&context->Provider->ProviderCritSec);
+
+	for (auto iter = context->HWndList.begin(); iter != context->HWndList.end(); iter++) {
+		err = 0;
+		if (context->Provider->NextProcTable.lpWSPAsyncSelect(s, *iter, 0, 0, &err))
+		{
+			LeaveCriticalSection(&context->Provider->ProviderCritSec);
+			return ECONNRESET; // WSAAsyncSelect(s, hWnd, 0, 0);
+		}
+
+	}
+
+	LeaveCriticalSection(&context->Provider->ProviderCritSec);
+	return 0;
+}
+
+int WSPResumeEvent(SOCKET s, SOCKET_CONTEXT *context)
+{
+	if (context == NULL || s == INVALID_SOCKET)
+	{
+		return SOCKET_ERROR;
+	}
+
+	EnterCriticalSection(&context->Provider->ProviderCritSec);
+
+	vector<SOCKET_EVENT_CONTEXT *> *events = &context->Events;
+	for (auto iter = events->begin(); iter != events->end(); iter++)
+	{
+		int error = 0;
+		if (NULL == (*iter)->hWnd) {
+
+			if (context->Provider->NextProcTable.lpWSPEventSelect(
+				s,
+				(HANDLE)(*iter)->hEvent,
+				(*iter)->lNetworkEvents,
+				&error)
+				) {
+				return ECONNRESET;
+			}
+
+		}
+		else {
+
+			if (context->Provider->NextProcTable.lpWSPAsyncSelect(
+				s,
+				(*iter)->hWnd,
+				(*iter)->wMsg,
+				(long)(*iter)->hEvent,
+				&error)
+				) {
+				return ECONNRESET;
+			}
+
+		}
+	}
+
+	LeaveCriticalSection(&context->Provider->ProviderCritSec);
+
+	return 0;
+}
+
 int WSPAPI
 WSPSend(
         SOCKET          s,
@@ -327,6 +393,7 @@ WSPSend(
        )
 {
     SOCKET_CONTEXT *sockContext = NULL;
+	BOOL			isEnterCriticalSection = FALSE;
 	int             rc = SOCKET_ERROR;
 
     //
@@ -341,6 +408,58 @@ WSPSend(
 
     ASSERT( sockContext->Provider->NextProcTable.lpWSPSend );
 
+	if (sockContext->Proxied && sockContext->RequireHandshake) {
+
+		EnterCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+		isEnterCriticalSection = TRUE;
+
+		if (sockContext->RequireHandshake) {
+
+			sockContext->RequireHandshake = FALSE;
+
+			if (0 != WSPPauseEvent(s, sockContext)) {
+				rc = SOCKET_ERROR;
+				*lpErrno = ECONNRESET;
+				goto cleanup;
+			}
+
+			u_long enabled = 1, 
+				   disabled = 0;
+			BOOL   isNio = sockContext->Nbio;
+			int	   error = 0;
+			if (TRUE == isNio) {
+				ioctlsocket(s, FIONBIO, &disabled);
+			}
+
+			if (0 != SockerV5TCPHandshake(
+				s,
+				(SOCKADDR *)&sockContext->ProxiedAddress,
+				(SOCKADDR *)&sockContext->OriginalAddress,
+				&error
+			)) {
+				rc = SOCKET_ERROR;
+				goto cleanup;
+			}
+
+			if (TRUE == isNio) {
+				ioctlsocket(s, FIONBIO, &enabled);
+			}
+
+			if (0 != WSPResumeEvent(s, sockContext)) {
+				rc = SOCKET_ERROR;
+				*lpErrno = ECONNRESET;
+				goto cleanup;
+			}
+
+		}
+
+		isEnterCriticalSection = FALSE;
+
+		LeaveCriticalSection(&sockContext->Provider->ProviderCritSec);
+
+	}
+
     rc = sockContext->Provider->NextProcTable.lpWSPSend(
             s,
             lpBuffers,
@@ -353,6 +472,10 @@ WSPSend(
             lpErrno
             );
 cleanup:
+
+	if (TRUE == isEnterCriticalSection) {
+		LeaveCriticalSection(&sockContext->Provider->ProviderCritSec);
+	}
 
     return rc;
 }
@@ -451,7 +574,7 @@ WSPSocket(
 	//    base provider's
 	if (BASE_PROTOCOL == lowerProvider->NextProvider.ProtocolChain.ChainLen)
 	{
-		memcpy(&InfoCopy, &lowerProvider->NextProvider, sizeof(InfoCopy));
+		::memcpy(&InfoCopy, &lowerProvider->NextProvider, sizeof(InfoCopy));
 		InfoCopy.dwProviderReserved = lpProtocolInfo->dwProviderReserved;
 		if (af == FROM_PROTOCOL_INFO)
 			InfoCopy.iAddressFamily = lpProtocolInfo->iAddressFamily;
@@ -535,34 +658,6 @@ cleanup:
 		FreeSocketContext(lowerProvider, sockContext);
 
 	return INVALID_SOCKET;
-}
-
-int WSPPauseEvent(SOCKET s, SOCKET_CONTEXT* context)
-{
-	if (context == NULL || s == INVALID_SOCKET)
-	{
-		return SOCKET_ERROR;
-	}
-	int err = 0; // THE CLEANUP BIND EVENT OBJECT
-	if (context->Provider->NextProcTable.lpWSPEventSelect(s, 0, NULL, &err))
-	{
-		return ECONNRESET;
-	}
-
-	EnterCriticalSection(&context->Provider->ProviderCritSec);
-
-	for (auto iter = context->HWndList.begin(); iter != context->HWndList.end(); iter++) {
-		err = 0;
-		if (context->Provider->NextProcTable.lpWSPAsyncSelect(s, *iter, 0, 0, &err))
-		{
-			LeaveCriticalSection(&context->Provider->ProviderCritSec);
-			return ECONNRESET; // WSAAsyncSelect(s, hWnd, 0, 0);
-		}
-
-	}
-
-	LeaveCriticalSection(&context->Provider->ProviderCritSec);
-	return 0;
 }
 
 int WSPAPI WSPEventSelect(
@@ -703,7 +798,7 @@ WSPStartup(
         }
 
         // Save off upcall table - this should be the same across all WSPStartup calls
-        memcpy( &gMainUpCallTable, &UpCallTable, sizeof( gMainUpCallTable ) );
+        ::memcpy( &gMainUpCallTable, &UpCallTable, sizeof( gMainUpCallTable ) );
 
     }
 
@@ -743,7 +838,7 @@ WSPStartup(
     gStartupCount++;
 
     // Build the proc table to return to the caller
-    memcpy( lpProcTable, &loadProvider->NextProcTable, sizeof( *lpProcTable ) );
+    ::memcpy( lpProcTable, &loadProvider->NextProcTable, sizeof( *lpProcTable ) );
 
     // Override only those functions the LSP wants to intercept
     lpProcTable->lpWSPCleanup       = WSPCleanup;
@@ -756,7 +851,7 @@ WSPStartup(
 	lpProcTable->lpWSPAsyncSelect	= WSPAsyncSelect;
 	lpProcTable->lpWSPEventSelect	= WSPEventSelect;
 
-    memcpy( lpWSPData, &loadProvider->WinsockVersion, sizeof( *lpWSPData ) );
+    ::memcpy( lpWSPData, &loadProvider->WinsockVersion, sizeof( *lpWSPData ) );
 
     Error = NO_ERROR;
 
@@ -801,7 +896,7 @@ FindDestinationAddress(
     context->AddressLength = destLen;
 
     // Save destination address
-    memcpy( &context->OriginalAddress, destAddr, context->AddressLength );
+    ::memcpy( &context->OriginalAddress, destAddr, context->AddressLength );
 
     *proxyAddr = (SOCKADDR *) &context->OriginalAddress;
     *proxyLen  = context->AddressLength;
@@ -811,7 +906,7 @@ FindDestinationAddress(
         // Redirect one destination to another
         if ( ( (SOCKADDR_IN *)destAddr )->sin_addr.s_addr == inet_addr("157.56.236.201") )
         {
-            memcpy( &context->ProxiedAddress, destAddr, context->AddressLength );
+            ::memcpy( &context->ProxiedAddress, destAddr, context->AddressLength );
             ( (SOCKADDR_IN *)&context->ProxiedAddress )->sin_addr.s_addr = inet_addr(
                     "157.56.237.9"
                     );

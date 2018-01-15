@@ -2,11 +2,11 @@
 
 #define REV_BUFF_LEN 1024
 
-int ConnectSocksV5ServerForTcp(
-	SOCKET s, 
-	SOCKADDR *socksServerAddr, 
-	SOCKADDR *destAddr,
-	int		 *lpErrorno
+int SockerV5TCPHandshake(
+	SOCKET			s, 
+	SOCKADDR		*socksServerAddr, 
+	SOCKADDR		*destAddr,
+	int				*lpErrorno
 )
 {
 	METHOD_SELECT_REQUEST  *lpMethodSelectRequest = NULL;
@@ -17,11 +17,6 @@ int ConnectSocksV5ServerForTcp(
 						   lpRecvBuff[REV_BUFF_LEN],
 						   *lpszIpv4;
 	int					   rc;
-
-	rc = connect(s, socksServerAddr, sizeof(*socksServerAddr));
-	if (SOCKET_ERROR == rc) {
-		goto cleanup;
-	}
 
 
 	lpMethodSelectRequest = (METHOD_SELECT_REQUEST *)malloc(sizeof(METHOD_SELECT_REQUEST) + 1);
@@ -57,8 +52,8 @@ int ConnectSocksV5ServerForTcp(
 	lpSocks5Request->cmd = CONNECT;
 	lpSocks5Request->rsv = 0x00;
 	lpSocks5Request->atyp = IPV4;
-	memcpy(lpSocks5Request->addr, &((SOCKADDR_IN *)destAddr)->sin_addr, 4);
-	memcpy((lpSocks5Request->addr + 4), &((SOCKADDR_IN *)destAddr)->sin_port, 2);
+	::memcpy(lpSocks5Request->addr, &((SOCKADDR_IN *)destAddr)->sin_addr, 4);
+	::memcpy((lpSocks5Request->addr + 4), &((SOCKADDR_IN *)destAddr)->sin_port, 2);
 
 	lpSendBuff = (char *)lpSocks5Request;
 	rc = send(s, lpSendBuff, sizeof(SOCKS5_REQUEST) + 4 + 2, 0);
