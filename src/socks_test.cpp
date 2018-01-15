@@ -48,16 +48,22 @@ int enventSelectTest(SOCKET s, SOCKADDR *destAddr)
 	BOOL isLoop = TRUE;
 	while (isLoop) {
 
-		rc = WSAWaitForMultipleEvents(nEventTotal, eventArray, TRUE, WSA_INFINITE, FALSE);
+		rc = WSAWaitForMultipleEvents(nEventTotal, eventArray, FALSE, WSA_INFINITE, FALSE);
 		if (rc == WSA_WAIT_FAILED || rc == WSA_WAIT_TIMEOUT) {
 			printf("enventSelectTest::WSAWaitForMultipleEvents Error:%d\n", WSAGetLastError());
 			rc = SOCKET_ERROR;
 		}
 
-		for (size_t i = 0; i < nEventTotal; i++)
+		size_t lastIndex = rc - WSA_WAIT_EVENT_0;
+		for (size_t i = lastIndex; i < nEventTotal; i++)
 		{
+			rc = WSAWaitForMultipleEvents(1, &eventArray[i], TRUE, 1000, FALSE);
+			if (rc == WSA_WAIT_FAILED || rc == WSA_WAIT_TIMEOUT) {
+				continue;
+			}
+
 			WSANETWORKEVENTS event;
-			rc = WSAEnumNetworkEvents(s, eventArray[i], &event);
+			rc = WSAEnumNetworkEvents(sockArray[i], eventArray[i], &event);
 			if (rc == SOCKET_ERROR) {
 				printf("WSAEnumNetworkEvents Error:%d\n", WSAGetLastError());
 				isLoop = FALSE;
@@ -94,8 +100,8 @@ int enventSelectTest(SOCKET s, SOCKADDR *destAddr)
 					printf("recv error\n");
 				}
 				else {
+					recvBuff[rc] = '\0';
 					rc = 0;
-					recvBuff[4096] = '\0';
 					printf("recv ok:%s\n", recvBuff);
 				}
 			}
