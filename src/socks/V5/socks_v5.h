@@ -43,6 +43,8 @@ typedef struct _SOCKS5_RESPONSE {
 
 #pragma pack()
 
+BOOL IsNeedProxy(SOCKADDR *addr);
+
 int SockerV5TCPHandshake(
 		SOCKET			s,
 		SOCKADDR		*socksServerAddr,

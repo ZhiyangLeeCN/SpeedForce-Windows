@@ -2,6 +2,31 @@
 
 #define REV_BUFF_LEN 1024
 
+BOOL
+IsNeedProxy(SOCKADDR *addr)
+{
+	if (addr->sa_family == AF_INET) {
+
+		SOCKADDR_IN *inetAddr = (SOCKADDR_IN *)addr;
+		UCHAR net = inetAddr->sin_addr.s_net;
+		UCHAR host = inetAddr->sin_addr.s_host;
+
+		if (net == 0 || inetAddr->sin_addr.s_addr == htonl(INADDR_LOOPBACK))
+			return FALSE;
+		if (net > 233 || net == 10)
+			return FALSE;
+		if (net == 172 && (host >= 16 && host <= 32))
+			return FALSE;
+		if (net == 192 && host == 168)
+			return FALSE;
+
+		return TRUE;
+
+	}
+
+	return FALSE;
+}
+
 int SockerV5TCPHandshake(
 	SOCKET			s, 
 	SOCKADDR		*socksServerAddr, 

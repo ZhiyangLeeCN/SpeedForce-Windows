@@ -28,7 +28,7 @@ int ioTest(SOCKET s, SOCKADDR *destAddr)
 
 }
 
-int enventSelectTest(SOCKET s, SOCKADDR *destAddr)
+int enventSelectTest(SOCKET s)
 {
 	u_long enable = 1, disabled = 0;
 
@@ -148,9 +148,20 @@ int main()
 	//	&lpErrorno
 	//);
 
-	int rc = connect(s, (SOCKADDR *)&destAddr, sizeof(destAddr));
+	int rc = connect(s, (SOCKADDR *)&socksServerAddr, sizeof(socksServerAddr));
 
-	enventSelectTest(s, (SOCKADDR *)&destAddr);
+	if (0 != rc) {
+		printf("connect error.\n");
+	} else {
+		int error = 0;
+		rc = SockerV5TCPHandshake(s, (SOCKADDR *)&socksServerAddr, (SOCKADDR *)&destAddr, &error);
+		if (0 != rc) {
+			printf("SockerV5TCPHandshake error.\n");
+		}
+		else {
+			enventSelectTest(s);
+		}
+	}
 
 	closesocket(s);
 
